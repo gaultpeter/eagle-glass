@@ -19,6 +19,7 @@ struct RectI {
 }
 
 const VK_LBUTTON: c_int = 0x01;
+const GA_ROOT: u32 = 2;
 
 pub fn left_button_down() -> bool {
     unsafe { (GetAsyncKeyState(VK_LBUTTON) as u16 & 0x8000) != 0 }
@@ -72,6 +73,10 @@ extern "system" {
     fn GetCursorPos(p: *mut Point) -> c_int;
     fn ScreenToClient(hwnd: Handle, p: *mut Point) -> c_int;
     fn GetClientRect(hwnd: Handle, r: *mut RectI) -> c_int;
+    fn GetForegroundWindow() -> Handle;
+    fn WindowFromPoint(p: Point) -> Handle;
+    fn GetAncestor(hwnd: Handle, flags: u32) -> Handle;
+    fn IsChild(parent: Handle, child: Handle) -> c_int;
 }
 
 #[link(name = "kernel32")]
@@ -352,7 +357,7 @@ impl Player {
     }
 
     pub fn cursor_over_video(&self) -> bool {
-        if self.child.is_null() {
+        if self.child.is_null() || self.parent.is_null() {
             return false;
         }
         unsafe {
@@ -360,14 +365,27 @@ impl Player {
             if GetCursorPos(&mut pt) == 0 {
                 return false;
             }
-            if ScreenToClient(self.child, &mut pt) == 0 {
+            // the app must be the active (foreground) window
+            let root = GetAncestor(self.parent, GA_ROOT);
+            if root.is_null() || GetForegroundWindow() != root {
+                return false;
+            }
+            // the topmost window actually under the cursor must belong to our app
+            // (i.e. the video isn't covered by another window)
+            let under = WindowFromPoint(Point { x: pt.x, y: pt.y });
+            if under.is_null() || IsChild(self.parent, under) == 0 {
+                return false;
+            }
+            // and the cursor must be within the video surface
+            let mut p2 = Point { x: pt.x, y: pt.y };
+            if ScreenToClient(self.child, &mut p2) == 0 {
                 return false;
             }
             let mut rc = RectI { left: 0, top: 0, right: 0, bottom: 0 };
             if GetClientRect(self.child, &mut rc) == 0 {
                 return false;
             }
-            pt.x >= 0 && pt.y >= 0 && pt.x < rc.right && pt.y < rc.bottom
+            p2.x >= 0 && p2.y >= 0 && p2.x < rc.right && p2.y < rc.bottom
         }
     }
 

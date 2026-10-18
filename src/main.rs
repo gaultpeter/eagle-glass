@@ -1201,6 +1201,20 @@ fn run_cli(server: String, user: String, pass: String, rest: Vec<String>) -> Res
     Ok(())
 }
 
+#[cfg(windows)]
+fn detach_console() {
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn FreeConsole() -> i32;
+    }
+    unsafe {
+        FreeConsole();
+    }
+}
+
+#[cfg(not(windows))]
+fn detach_console() {}
+
 fn main() -> eframe::Result<()> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let (server, user, pass, rest) = parse_flags(&args);
@@ -1212,6 +1226,8 @@ fn main() -> eframe::Result<()> {
         }
         return Ok(());
     }
+
+    detach_console();
 
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()

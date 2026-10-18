@@ -411,6 +411,9 @@ struct App {
     vol_reapply: u32,
     prev_lbtn: bool,
     last_click: f64,
+    bright: f32,
+    contrast: f32,
+    gamma: f32,
 }
 
 fn clone_client(c: &Option<Xtream>) -> Option<Xtream> {
@@ -479,6 +482,9 @@ impl Default for App {
             vol_reapply: 0,
             prev_lbtn: false,
             last_click: 0.0,
+            bright: 1.0,
+            contrast: 1.0,
+            gamma: 1.0,
         }
     }
 }
@@ -1076,6 +1082,7 @@ impl eframe::App for App {
         }
         if self.vol_reapply > 0 && playing {
             self.player.set_volume(self.player.volume());
+            self.player.set_picture(self.bright, self.contrast, self.gamma);
             self.vol_reapply -= 1;
             ctx.request_repaint();
         }
@@ -1123,6 +1130,47 @@ impl eframe::App for App {
                                 ui.selectable_value(&mut self.live_format, "m3u8".into(), "m3u8");
                             });
                     });
+                    ui.add_space(10.0);
+                    ui.separator();
+                    ui.add_space(6.0);
+                    ui.label(
+                        egui::RichText::new("Picture (fix washed-out UHD / HDR)")
+                            .size(10.5)
+                            .color(T_MUTED),
+                    );
+                    ui.add_space(4.0);
+                    ui.spacing_mut().slider_width = 170.0;
+                    let mut changed = false;
+                    ui.horizontal(|ui| {
+                        ui.add_sized(
+                            [72.0, 18.0],
+                            egui::Label::new(egui::RichText::new("Brightness").size(11.0)),
+                        );
+                        changed |= ui.add(egui::Slider::new(&mut self.bright, 0.5..=2.0)).changed();
+                    });
+                    ui.horizontal(|ui| {
+                        ui.add_sized(
+                            [72.0, 18.0],
+                            egui::Label::new(egui::RichText::new("Contrast").size(11.0)),
+                        );
+                        changed |= ui.add(egui::Slider::new(&mut self.contrast, 0.5..=2.0)).changed();
+                    });
+                    ui.horizontal(|ui| {
+                        ui.add_sized(
+                            [72.0, 18.0],
+                            egui::Label::new(egui::RichText::new("Gamma").size(11.0)),
+                        );
+                        changed |= ui.add(egui::Slider::new(&mut self.gamma, 0.5..=3.0)).changed();
+                    });
+                    if ui.button("Reset picture").clicked() {
+                        self.bright = 1.0;
+                        self.contrast = 1.0;
+                        self.gamma = 1.0;
+                        changed = true;
+                    }
+                    if changed {
+                        self.player.set_picture(self.bright, self.contrast, self.gamma);
+                    }
                     ui.add_space(12.0);
                     let connecting = self.rx.is_some();
                     let label = if connecting { "Connecting..." } else { "Connect" };

@@ -106,8 +106,15 @@ struct Lib {
     mp_is_playing: unsafe extern "C" fn(Handle) -> c_int,
     audio_set_volume: unsafe extern "C" fn(Handle, c_int) -> c_int,
     audio_get_volume: unsafe extern "C" fn(Handle) -> c_int,
+    video_set_adjust_int: unsafe extern "C" fn(Handle, c_int, c_int) -> c_int,
+    video_set_adjust_float: unsafe extern "C" fn(Handle, c_int, f32) -> c_int,
     mp_release: unsafe extern "C" fn(Handle),
 }
+
+pub const ADJ_ENABLE: c_int = 0;
+pub const ADJ_CONTRAST: c_int = 1;
+pub const ADJ_BRIGHTNESS: c_int = 2;
+pub const ADJ_GAMMA: c_int = 5;
 
 fn load_lib() -> Result<Lib, String> {
     let mut dirs: Vec<String> = Vec::new();
@@ -145,6 +152,8 @@ fn load_lib() -> Result<Lib, String> {
             let mp_is_playing = *lib.get::<unsafe extern "C" fn(Handle) -> c_int>(b"libvlc_media_player_is_playing\0").map_err(|e| e.to_string())?;
             let audio_set_volume = *lib.get::<unsafe extern "C" fn(Handle, c_int) -> c_int>(b"libvlc_audio_set_volume\0").map_err(|e| e.to_string())?;
             let audio_get_volume = *lib.get::<unsafe extern "C" fn(Handle) -> c_int>(b"libvlc_audio_get_volume\0").map_err(|e| e.to_string())?;
+            let video_set_adjust_int = *lib.get::<unsafe extern "C" fn(Handle, c_int, c_int) -> c_int>(b"libvlc_video_set_adjust_int\0").map_err(|e| e.to_string())?;
+            let video_set_adjust_float = *lib.get::<unsafe extern "C" fn(Handle, c_int, f32) -> c_int>(b"libvlc_video_set_adjust_float\0").map_err(|e| e.to_string())?;
             let mp_release = *lib.get::<unsafe extern "C" fn(Handle)>(b"libvlc_media_player_release\0").map_err(|e| e.to_string())?;
             return Ok(Lib {
                 _lib: lib,
@@ -161,6 +170,8 @@ fn load_lib() -> Result<Lib, String> {
                 mp_is_playing,
                 audio_set_volume,
                 audio_get_volume,
+                video_set_adjust_int,
+                video_set_adjust_float,
                 mp_release,
             });
         }
@@ -357,6 +368,19 @@ impl Player {
                 return false;
             }
             pt.x >= 0 && pt.y >= 0 && pt.x < rc.right && pt.y < rc.bottom
+        }
+    }
+
+    pub fn set_picture(&self, brightness: f32, contrast: f32, gamma: f32) {
+        if let Some(lib) = &self.lib {
+            if !self.mp.is_null() {
+                unsafe {
+                    (lib.video_set_adjust_int)(self.mp, ADJ_ENABLE, 1);
+                    (lib.video_set_adjust_float)(self.mp, ADJ_BRIGHTNESS, brightness);
+                    (lib.video_set_adjust_float)(self.mp, ADJ_CONTRAST, contrast);
+                    (lib.video_set_adjust_float)(self.mp, ADJ_GAMMA, gamma);
+                }
+            }
         }
     }
 

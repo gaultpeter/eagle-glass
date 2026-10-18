@@ -735,6 +735,10 @@ impl eframe::App for App {
         if self.fullscreen && esc {
             self.set_fullscreen(ctx, false);
         }
+        if video::take_double_click() {
+            let on = !self.fullscreen;
+            self.set_fullscreen(ctx, on);
+        }
 
         if !ctx.wants_keyboard_input() {
             if ctx.input(|i| i.key_pressed(egui::Key::Space)) {

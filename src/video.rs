@@ -1,8 +1,15 @@
 use std::ffi::{c_char, c_int, c_void, CString};
 use std::path::Path;
 use std::ptr;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 type Handle = *mut c_void;
+
+static DOUBLE_CLICKED: AtomicBool = AtomicBool::new(false);
+
+pub fn take_double_click() -> bool {
+    DOUBLE_CLICKED.swap(false, Ordering::SeqCst)
+}
 
 fn wide(s: &str) -> Vec<u16> {
     s.encode_utf16().chain(std::iter::once(0)).collect()
@@ -62,8 +69,14 @@ extern "system" {
 }
 
 const BLACK_BRUSH: c_int = 4;
+const CS_DBLCLKS: u32 = 0x0008;
+const WM_LBUTTONDBLCLK: u32 = 0x0203;
 
 unsafe extern "system" fn wnd_proc(hwnd: Handle, msg: u32, w: usize, l: isize) -> isize {
+    if msg == WM_LBUTTONDBLCLK {
+        DOUBLE_CLICKED.store(true, Ordering::SeqCst);
+        return 0;
+    }
     unsafe { DefWindowProcW(hwnd, msg, w, l) }
 }
 
@@ -219,7 +232,7 @@ impl Player {
             let cls = wide("EglassVideo");
             let inst = GetModuleHandleW(ptr::null());
             let wc = WndClassW {
-                style: 0,
+                style: CS_DBLCLKS,
                 lpfn_wnd_proc: Some(wnd_proc),
                 cb_cls_extra: 0,
                 cb_wnd_extra: 0,

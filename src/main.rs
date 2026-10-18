@@ -814,7 +814,7 @@ impl eframe::App for App {
                 let g = ctx.fonts(|f| f.layout_no_wrap(label, font.clone(), egui::Color32::WHITE));
                 maxw = maxw.max(g.size().x);
             }
-            self.side_width = Some((maxw + 26.0 + 44.0).clamp(240.0, 560.0));
+            self.side_width = Some((maxw + 26.0 + 44.0).clamp(240.0, 420.0));
         }
 
         egui::TopBottomPanel::top("top")
@@ -862,7 +862,11 @@ impl eframe::App for App {
             let panel = if apply_exact {
                 egui::SidePanel::left("cats").exact_width(side_w).frame(frame.clone())
             } else {
-                egui::SidePanel::left("cats").resizable(true).default_width(side_w).frame(frame.clone())
+                egui::SidePanel::left("cats")
+                    .resizable(true)
+                    .default_width(side_w)
+                    .width_range(200.0..=440.0)
+                    .frame(frame.clone())
             };
             let mut open = [self.open_live, self.open_vod, self.open_series];
             panel.show(ctx, |ui| {

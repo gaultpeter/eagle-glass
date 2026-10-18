@@ -409,6 +409,8 @@ struct App {
     show_settings: bool,
     wizard: bool,
     vol_reapply: u32,
+    prev_lbtn: bool,
+    last_click: f64,
 }
 
 fn clone_client(c: &Option<Xtream>) -> Option<Xtream> {
@@ -475,6 +477,8 @@ impl Default for App {
             show_settings: false,
             wizard: !autostart,
             vol_reapply: 0,
+            prev_lbtn: false,
+            last_click: 0.0,
         }
     }
 }
@@ -735,9 +739,20 @@ impl eframe::App for App {
         if self.fullscreen && esc {
             self.set_fullscreen(ctx, false);
         }
-        if video::take_double_click() {
-            let on = !self.fullscreen;
-            self.set_fullscreen(ctx, on);
+        let lbtn = video::left_button_down();
+        if lbtn && !self.prev_lbtn && self.player.cursor_over_video() {
+            let t = ctx.input(|i| i.time);
+            if t - self.last_click < 0.45 {
+                let on = !self.fullscreen;
+                self.set_fullscreen(ctx, on);
+                self.last_click = 0.0;
+            } else {
+                self.last_click = t;
+            }
+        }
+        self.prev_lbtn = lbtn;
+        if self.player.is_playing() {
+            ctx.request_repaint_after(std::time::Duration::from_millis(25));
         }
 
         if !ctx.wants_keyboard_input() {
@@ -807,8 +822,6 @@ impl eframe::App for App {
             .show(ctx, |ui| {
                 ui.add_space(6.0);
                 ui.horizontal(|ui| {
-                    ui.label(egui::RichText::new("Eagle Glass").size(15.0).strong());
-                    ui.add_space(10.0);
                     let connecting = self.rx.is_some();
                     let (col, text) = if self.client.is_some() {
                         (T_SUCCESS, format!("Connected · {}", self.user))
@@ -1236,7 +1249,7 @@ fn main() -> eframe::Result<()> {
         ..Default::default()
     };
     eframe::run_native(
-        "Eagle Glass (Rust)",
+        "Eagle Glass",
         options,
         Box::new(|cc| {
             apply_theme(&cc.egui_ctx);

@@ -1,14 +1,27 @@
 use std::ffi::{c_char, c_int, c_void, CString};
 use std::path::Path;
 use std::ptr;
-use std::sync::atomic::{AtomicBool, Ordering};
 
 type Handle = *mut c_void;
 
-static DOUBLE_CLICKED: AtomicBool = AtomicBool::new(false);
+#[repr(C)]
+struct Point {
+    x: i32,
+    y: i32,
+}
 
-pub fn take_double_click() -> bool {
-    DOUBLE_CLICKED.swap(false, Ordering::SeqCst)
+#[repr(C)]
+struct RectI {
+    left: i32,
+    top: i32,
+    right: i32,
+    bottom: i32,
+}
+
+const VK_LBUTTON: c_int = 0x01;
+
+pub fn left_button_down() -> bool {
+    unsafe { (GetAsyncKeyState(VK_LBUTTON) as u16 & 0x8000) != 0 }
 }
 
 fn wide(s: &str) -> Vec<u16> {
@@ -55,6 +68,10 @@ extern "system" {
     fn MoveWindow(hwnd: Handle, x: c_int, y: c_int, w: c_int, h: c_int, repaint: c_int) -> c_int;
     fn ShowWindow(hwnd: Handle, cmd: c_int) -> c_int;
     fn DestroyWindow(hwnd: Handle) -> c_int;
+    fn GetAsyncKeyState(vkey: c_int) -> i16;
+    fn GetCursorPos(p: *mut Point) -> c_int;
+    fn ScreenToClient(hwnd: Handle, p: *mut Point) -> c_int;
+    fn GetClientRect(hwnd: Handle, r: *mut RectI) -> c_int;
 }
 
 #[link(name = "kernel32")]
@@ -69,14 +86,8 @@ extern "system" {
 }
 
 const BLACK_BRUSH: c_int = 4;
-const CS_DBLCLKS: u32 = 0x0008;
-const WM_LBUTTONDBLCLK: u32 = 0x0203;
 
 unsafe extern "system" fn wnd_proc(hwnd: Handle, msg: u32, w: usize, l: isize) -> isize {
-    if msg == WM_LBUTTONDBLCLK {
-        DOUBLE_CLICKED.store(true, Ordering::SeqCst);
-        return 0;
-    }
     unsafe { DefWindowProcW(hwnd, msg, w, l) }
 }
 
@@ -232,7 +243,7 @@ impl Player {
             let cls = wide("EglassVideo");
             let inst = GetModuleHandleW(ptr::null());
             let wc = WndClassW {
-                style: CS_DBLCLKS,
+                style: 0,
                 lpfn_wnd_proc: Some(wnd_proc),
                 cb_cls_extra: 0,
                 cb_wnd_extra: 0,
@@ -326,6 +337,26 @@ impl Player {
             if !self.mp.is_null() {
                 unsafe { (lib.audio_set_volume)(self.mp, self.vol) };
             }
+        }
+    }
+
+    pub fn cursor_over_video(&self) -> bool {
+        if self.child.is_null() {
+            return false;
+        }
+        unsafe {
+            let mut pt = Point { x: 0, y: 0 };
+            if GetCursorPos(&mut pt) == 0 {
+                return false;
+            }
+            if ScreenToClient(self.child, &mut pt) == 0 {
+                return false;
+            }
+            let mut rc = RectI { left: 0, top: 0, right: 0, bottom: 0 };
+            if GetClientRect(self.child, &mut rc) == 0 {
+                return false;
+            }
+            pt.x >= 0 && pt.y >= 0 && pt.x < rc.right && pt.y < rc.bottom
         }
     }
 
